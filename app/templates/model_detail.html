@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}{{ model.name }} - Models{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{{ model.name }}</h1>
+            <a href="/models" class="btn btn-secondary">Back to Models</a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>Model Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">Model Type:</dt>
+                    <dd class="col-sm-9">{{ model.model_type.name }}</dd>
+                    
+                    <dt class="col-sm-3">API Endpoint:</dt>
+                    <dd class="col-sm-9">{{ model.api_endpoint or "OpenRouter (default)" }}</dd>
+                    
+                    <dt class="col-sm-3">API Key:</dt>
+                    <dd class="col-sm-9">{{ model.api_key_name or "OPENROUTER_API_KEY (default)" }}</dd>
+                    
+                    <dt class="col-sm-3">Added:</dt>
+                    <dd class="col-sm-9">{{ model.created_at.strftime('%Y-%m-%d %H:%M') }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Performance Stats</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Total Runs:</strong> {{ total_runs }}</p>
+                <p><strong>Average Score:</strong> {{ "%.3f"|format(average_score) if average_score else "N/A" }}</p>
+                <p><strong>Total Cost:</strong> ${{ "%.4f"|format(total_cost) }}</p>
+                <p><strong>Total Tokens:</strong> {{ total_tokens }}</p>
+                {% if not total_runs %}
+                <form method="post" action="/api/evaluate-model/{{ model.id }}">
+                    <button type="submit" class="btn btn-warning">Evaluate Model</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Benchmark Results</h5>
+            </div>
+            <div class="card-body">
+                {% if benchmark_runs %}
+                <div class="mb-3">
+                    <label for="promptFilter" class="form-label">Filter by Prompt:</label>
+                    <select class="form-select" id="promptFilter" onchange="filterResults()">
+                        <option value="">All Prompts</option>
+                        {% for prompt in prompts %}
+                        <option value="{{ prompt.id }}">{{ prompt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Prompt</th>
+                                <th>Version</th>
+                                <th>Score</th>
+                                <th>Tokens</th>
+                                <th>Cost</th>
+                                <th>Runtime</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for run in benchmark_runs %}
+                            <tr class="prompt-result" data-prompt-id="{{ run.prompt_revision.prompt.id }}">
+                                <td>{{ run.prompt_revision.prompt.name }}</td>
+                                <td>v{{ run.prompt_revision.version_number }}</td>
+                                <td>
+                                    {% if run.score is not none %}
+                                    {{ "%.3f"|format(run.score) }}
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ run.input_tokens + run.output_tokens }}</td>
+                                <td>${{ "%.4f"|format(run.cost_usd) }}</td>
+                                <td>{{ run.run_time_ms }}ms</td>
+                                <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewResponse({{ run.id }})">View Response</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No benchmark runs yet. Run some prompts against this model to see results.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Response Modal -->
+<div class="modal fade" id="responseModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Response Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="responseContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterResults() {
+    const promptId = document.getElementById('promptFilter').value;
+    const results = document.querySelectorAll('.prompt-result');
+    
+    results.forEach(result => {
+        if (!promptId || result.dataset.promptId === promptId) {
+            result.style.display = 'table-row';
+        } else {
+            result.style.display = 'none';
+        }
+    });
+}
+
+function viewResponse(runId) {
+    fetch(`/api/benchmark-runs/${runId}`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('responseContent').innerHTML = `
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <h6>Prompt:</h6>
+                        <pre class="bg-light p-3">${data.prompt_content}</pre>
+                    </div>
+                    <div class="col-12 mb-3">
+                        <h6>Response:</h6>
+                        <pre class="bg-light p-3">${data.response_text}</pre>
+                    </div>
+                    <div class="col-12">
+                        <h6>Metrics:</h6>
+                        <ul class="list-unstyled">
+                            <li><strong>Score:</strong> ${data.score || 'N/A'}</li>
+                            <li><strong>Input Tokens:</strong> ${data.input_tokens}</li>
+                            <li><strong>Output Tokens:</strong> ${data.output_tokens}</li>
+                            <li><strong>Cost:</strong> $${data.cost_usd.toFixed(4)}</li>
+                            <li><strong>Runtime:</strong> ${data.run_time_ms}ms</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+            new bootstrap.Modal(document.getElementById('responseModal')).show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error loading response details');
+        });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Results - LLM Benchmarking Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Benchmark Results & Analytics</h1>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Model Performance Comparison</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="evalTypeFilter" class="form-label">Evaluation Type:</label>
+                        <select class="form-select" id="evalTypeFilter" onchange="updateChart()">
+                            <option value="">All Types</option>
+                            {% for model_type in model_types %}
+                            <option value="{{ model_type.id }}">{{ model_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="promptFilter" class="form-label">Specific Prompt:</label>
+                        <select class="form-select" id="promptFilter" onchange="updateChart()">
+                            <option value="">All Prompts</option>
+                            {% for prompt in prompts %}
+                            <option value="{{ prompt.id }}">{{ prompt.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="dateRange" class="form-label">Date Range:</label>
+                        <select class="form-select" id="dateRange" onchange="updateChart()">
+                            <option value="all">All Time</option>
+                            <option value="7">Last 7 Days</option>
+                            <option value="30">Last 30 Days</option>
+                            <option value="90">Last 90 Days</option>
+                        </select>
+                    </div>
+                </div>
+                <canvas id="comparisonChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Cost Analysis</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="costChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Token Usage</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="tokenChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Detailed Results</h5>
+                <button class="btn btn-success btn-sm" onclick="exportResults()">Export CSV</button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Prompt</th>
+                                <th>Version</th>
+                                <th>Score</th>
+                                <th>Tokens</th>
+                                <th>Cost</th>
+                                <th>Runtime</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for run in benchmark_runs %}
+                            <tr>
+                                <td>{{ run.model.name }}</td>
+                                <td>{{ run.prompt_revision.prompt.name }}</td>
+                                <td>v{{ run.prompt_revision.version_number }}</td>
+                                <td>
+                                    {% if run.score is not none %}
+                                    {{ "%.3f"|format(run.score) }}
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ run.input_tokens + run.output_tokens }}</td>
+                                <td>${{ "%.4f"|format(run.cost_usd) }}</td>
+                                <td>{{ run.run_time_ms }}ms</td>
+                                <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewDetails({{ run.id }})">Details</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Initialize charts
+const comparisonCtx = document.getElementById('comparisonChart').getContext('2d');
+const costCtx = document.getElementById('costChart').getContext('2d');
+const tokenCtx = document.getElementById('tokenChart').getContext('2d');
+
+const comparisonChart = new Chart(comparisonCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ chart_data.model_names|tojson }},
+        datasets: [{
+            label: 'Average Score',
+            data: {{ chart_data.average_scores|tojson }},
+            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 1
+            }
+        }
+    }
+});
+
+const costChart = new Chart(costCtx, {
+    type: 'pie',
+    data: {
+        labels: {{ chart_data.model_names|tojson }},
+        datasets: [{
+            data: {{ chart_data.total_costs|tojson }},
+            backgroundColor: [
+                'rgba(255, 99, 132, 0.6)',
+                'rgba(54, 162, 235, 0.6)',
+                'rgba(255, 205, 86, 0.6)',
+                'rgba(75, 192, 192, 0.6)',
+                'rgba(153, 102, 255, 0.6)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.label + ': $' + context.parsed.toFixed(4);
+                    }
+                }
+            }
+        }
+    }
+});
+
+const tokenChart = new Chart(tokenCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ chart_data.model_names|tojson }},
+        datasets: [{
+            label: 'Total Tokens',
+            data: {{ chart_data.total_tokens|tojson }},
+            backgroundColor: 'rgba(75, 192, 192, 0.6)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+function updateChart() {
+    const evalType = document.getElementById('evalTypeFilter').value;
+    const prompt = document.getElementById('promptFilter').value;
+    const dateRange = document.getElementById('dateRange').value;
+    
+    const params = new URLSearchParams();
+    if (evalType) params.append('eval_type', evalType);
+    if (prompt) params.append('prompt_id', prompt);
+    if (dateRange !== 'all') params.append('days', dateRange);
+    
+    fetch(`/api/chart-data?${params}`)
+        .then(response => response.json())
+        .then(data => {
+            comparisonChart.data.labels = data.model_names;
+            comparisonChart.data.datasets[0].data = data.average_scores;
+            comparisonChart.update();
+            
+            costChart.data.labels = data.model_names;
+            costChart.data.datasets[0].data = data.total_costs;
+            costChart.update();
+            
+            tokenChart.data.labels = data.model_names;
+            tokenChart.data.datasets[0].data = data.total_tokens;
+            tokenChart.update();
+        })
+        .catch(error => console.error('Error updating charts:', error));
+}
+
+function viewDetails(runId) {
+    window.location.href = `/benchmark-runs/${runId}`;
+}
+
+function exportResults() {
+    window.location.href = '/api/export-results';
+}
+</script>
+{% endblock %}
