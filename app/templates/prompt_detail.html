@@ -24,9 +24,9 @@
             <div class="card-body">
                 <h6>Prompt Content:</h6>
                 <pre>{{ current_revision.content }}</pre>
-                {% if prompt.rubric %}
+                {% if current_revision.rubric_prompt %}
                 <h6 class="mt-4">Evaluation Rubric:</h6>
-                <pre class="bg-light">{{ prompt.rubric }}</pre>
+                <pre class="bg-light">{{ current_revision.rubric_prompt }}</pre>
                 {% endif %}
                 {% if current_revision.needs_rerun %}
                 <div class="alert alert-warning mt-3">
@@ -150,7 +150,6 @@
                                             <li><strong>Runtime:</strong> {{ run.run_time_ms }}ms</li>
                                             {% if run.judge_model %}
                                             <li><strong>Judge Model:</strong> {{ run.judge_model.name }}</li>
-                                            <li><strong>Judge Cost:</strong> ${{ "%.4f"|format(run.judge_cost_usd) }}</li>
                                             {% endif %}
                                         </ul>
                                         {% if run.judge_reasoning %}
@@ -215,16 +214,7 @@
             <form method="post" action="/api/rerun-prompt-with-judge">
                 <div class="modal-body">
                     <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
-                    <div class="mb-3">
-                        <label for="rerunJudgeModel" class="form-label">Judge Model (Optional)</label>
-                        <select class="form-select" id="rerunJudgeModel" name="judge_model_id">
-                            <option value="">No judge (simple evaluation)</option>
-                            {% for model in all_models %}
-                            <option value="{{ model.id }}">{{ model.name }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Select a model to use for LLM-as-a-judge evaluation.</div>
-                    </div>
+                    {{ judge_model_dropdown('rerunJudgeModel', all_models) }}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

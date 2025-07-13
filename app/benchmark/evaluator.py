@@ -41,7 +41,7 @@ Evaluation Criteria:
 {rubric_prompt}
 
 Please provide:
-1. A score from 0.0 to 1.0 (where 1.0 is perfect)
+1. The score for the model's output, based solely on the rubric (do not assign scores not given by the rubric)
 2. Your reasoning for this score
 
 Format your response as JSON:

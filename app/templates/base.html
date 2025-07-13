@@ -1,3 +1,15 @@
+{% macro judge_model_dropdown(id, models, label="Judge Model (Optional)", help_text="Select a model to use for LLM-as-a-judge evaluation.") %}
+<div class="mb-3">
+    <label for="{{ id }}" class="form-label">{{ label }}</label>
+    <select class="form-select" id="{{ id }}" name="judge_model_id">
+        {% for model in models %}
+        <option value="{{ model.id }}">{{ model.name }}</option>
+        {% endfor %}
+    </select>
+    <div class="form-text">{{ help_text }}</div>
+</div>
+{% endmacro %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
