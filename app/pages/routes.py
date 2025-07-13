@@ -162,19 +162,20 @@ async def create_prompt(
     name: str = Form(...),
     model_type_id: int = Form(...),
     content: str = Form(...),
-    rubric: Optional[str] = Form(None),
+    rubric_prompt: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    crud.create_prompt(db, name, model_type_id, content, rubric)
+    crud.create_prompt(db, name, model_type_id, content, rubric_prompt)
     return RedirectResponse(url="/prompts", status_code=303)
 
 @router.post("/api/prompts/{prompt_id}/revisions")
 async def create_prompt_revision(
     prompt_id: int,
     content: str = Form(...),
+    rubric_prompt: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    crud.create_prompt_revision(db, prompt_id, content)
+    crud.create_prompt_revision(db, prompt_id, content, rubric_prompt)
     return RedirectResponse(url=f"/prompts/{prompt_id}", status_code=303)
 
 @router.post("/api/models")
@@ -192,18 +193,18 @@ async def create_model(
 async def queue_run(
     prompt_id: int = Form(...),
     model_ids: List[int] = Form(...),
-    judge_model_id: Optional[int] = Form(None),
+    judge_model: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     current_revision = crud.get_current_prompt_revision(db, prompt_id)
     if not current_revision:
         raise HTTPException(status_code=404, detail="No current revision found for prompt")
     
-    if judge_model_id == "":
-        judge_model_id = None
+    if judge_model == "":
+        judge_model = None
     
     for model_id in model_ids:
-        crud.add_to_queue(db, model_id, current_revision.id, judge_model_id)
+        crud.add_to_queue(db, model_id, current_revision.id, judge_model)
     
     return RedirectResponse(url="/", status_code=303)
 

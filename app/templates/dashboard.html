@@ -137,14 +137,9 @@
                         {% endfor %}
                     </div>
                     <div class="mb-3">
-                        <label for="judgeModelSelect" class="form-label">Judge Model (Optional)</label>
-                        <select class="form-select" id="judgeModelSelect" name="judge_model_id">
-                            <option value="">No judge (simple scoring)</option>
-                            {% for model in models %}
-                            <option value="{{ model.id }}">{{ model.name }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Select a model to evaluate responses using the prompt's rubric</div>
+                        <label for="judgeModel" class="form-label">Judge Model (Optional)</label>
+                        <input type="text" class="form-control" id="judgeModel" name="judge_model" placeholder="e.g., gpt-4, claude-3-opus">
+                        <div class="form-text">Model to use for LLM-as-a-judge evaluation. Leave blank to use simple evaluation.</div>
                     </div>
                 </div>
                 <div class="modal-footer">

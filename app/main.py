@@ -72,7 +72,7 @@ async def process_queue_item(queue_item_id: int, db: Session):
         
         model = queue_item.model
         prompt_revision = queue_item.prompt_revision
-        judge_model = queue_item.judge_model
+        judge_model_name = queue_item.judge_model
         
         model_config = {
             "api_endpoint": model.api_endpoint,
@@ -85,27 +85,20 @@ async def process_queue_item(queue_item_id: int, db: Session):
             model_config
         )
         
-        evaluator = get_evaluator(model.model_type.name)()
-        
+        score = None
         judge_reasoning = None
-        judge_tokens = 0
-        judge_cost_usd = 0.0
-        judge_time_ms = 0
         
-        if judge_model and prompt_revision.prompt.rubric:
-            judge_config = {
-                "api_endpoint": judge_model.api_endpoint,
-                "api_key_name": judge_model.api_key_name
-            }
-            score, judge_reasoning, judge_tokens, judge_cost_usd, judge_time_ms = evaluator.evaluate_response(
+        if judge_model_name and prompt_revision.rubric_prompt:
+            from .benchmark.evaluator import LLMJudgeEvaluator
+            judge = LLMJudgeEvaluator(judge_model_name)
+            score, judge_reasoning = judge.evaluate_response(
                 response_text,
                 prompt_revision.content,
-                prompt_revision.prompt.rubric,
-                judge_model.name,
-                judge_config
+                prompt_revision.rubric_prompt
             )
         else:
-            score, judge_reasoning, judge_tokens, judge_cost_usd, judge_time_ms = evaluator.evaluate_response(response_text)
+            evaluator = get_evaluator(model.model_type.name)
+            score = evaluator.evaluate_response(response_text)
         
         crud.create_benchmark_run(
             db,
@@ -118,11 +111,8 @@ async def process_queue_item(queue_item_id: int, db: Session):
             run_time_ms,
             score,
             None,  # run_metadata
-            judge_model.id if judge_model else None,
-            judge_reasoning,
-            judge_tokens,
-            judge_cost_usd,
-            judge_time_ms
+            judge_model_name,
+            judge_reasoning
         )
         
         crud.mark_revision_as_run(db, prompt_revision.id)

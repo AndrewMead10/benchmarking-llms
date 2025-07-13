@@ -188,6 +188,11 @@
                         <label for="editPromptContent" class="form-label">Prompt Content</label>
                         <textarea class="form-control" id="editPromptContent" name="content" rows="10" required>{{ current_revision.content }}</textarea>
                     </div>
+                    <div class="mb-3">
+                        <label for="editRubricPrompt" class="form-label">Evaluation Rubric (Optional)</label>
+                        <textarea class="form-control" id="editRubricPrompt" name="rubric_prompt" rows="6">{{ current_revision.rubric_prompt or '' }}</textarea>
+                        <div class="form-text">Used by LLM judge to evaluate responses automatically.</div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

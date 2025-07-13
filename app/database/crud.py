@@ -19,8 +19,8 @@ def get_prompts(db: Session, skip: int = 0, limit: int = 100):
 def get_prompt(db: Session, prompt_id: int):
     return db.query(models.Prompt).filter(models.Prompt.id == prompt_id).first()
 
-def create_prompt(db: Session, name: str, model_type_id: int, content: str, rubric: str = None):
-    db_prompt = models.Prompt(name=name, model_type_id=model_type_id, rubric=rubric)
+def create_prompt(db: Session, name: str, model_type_id: int, content: str, rubric_prompt: str = None):
+    db_prompt = models.Prompt(name=name, model_type_id=model_type_id)
     db.add(db_prompt)
     db.commit()
     db.refresh(db_prompt)
@@ -28,6 +28,7 @@ def create_prompt(db: Session, name: str, model_type_id: int, content: str, rubr
     db_revision = models.PromptRevision(
         prompt_id=db_prompt.id,
         content=content,
+        rubric_prompt=rubric_prompt,
         version_number=1,
         is_current=True,
         needs_rerun=True
@@ -38,7 +39,7 @@ def create_prompt(db: Session, name: str, model_type_id: int, content: str, rubr
     
     return db_prompt
 
-def create_prompt_revision(db: Session, prompt_id: int, content: str):
+def create_prompt_revision(db: Session, prompt_id: int, content: str, rubric_prompt: str = None):
     current_revision = db.query(models.PromptRevision).filter(
         and_(models.PromptRevision.prompt_id == prompt_id, models.PromptRevision.is_current == True)
     ).first()
@@ -52,6 +53,7 @@ def create_prompt_revision(db: Session, prompt_id: int, content: str):
     db_revision = models.PromptRevision(
         prompt_id=prompt_id,
         content=content,
+        rubric_prompt=rubric_prompt,
         version_number=new_version,
         is_current=True,
         needs_rerun=True
@@ -100,23 +102,19 @@ def get_benchmark_runs(db: Session, prompt_id: int = None, model_id: int = None)
 
 def create_benchmark_run(db: Session, prompt_revision_id: int, model_id: int, response_text: str, 
                         input_tokens: int, output_tokens: int, cost_usd: float, run_time_ms: int, 
-                        score: float = None, run_metadata: dict = None, judge_model_id: int = None,
-                        judge_reasoning: str = None, judge_tokens: int = 0, judge_cost_usd: float = 0.0,
-                        judge_time_ms: int = 0):
+                        score: float = None, run_metadata: dict = None, judge_model: str = None,
+                        judge_reasoning: str = None):
     db_run = models.BenchmarkRun(
         prompt_revision_id=prompt_revision_id,
         model_id=model_id,
-        judge_model_id=judge_model_id,
+        judge_model=judge_model,
         response_text=response_text,
         score=score,
         judge_reasoning=judge_reasoning,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
-        judge_tokens=judge_tokens,
         cost_usd=cost_usd,
-        judge_cost_usd=judge_cost_usd,
         run_time_ms=run_time_ms,
-        judge_time_ms=judge_time_ms,
         run_metadata=run_metadata
     )
     db.add(db_run)
@@ -136,7 +134,7 @@ def mark_revision_as_run(db: Session, revision_id: int):
         db.commit()
     return revision
 
-def add_to_queue(db: Session, model_id: int, prompt_revision_id: int, judge_model_id: int = None):
+def add_to_queue(db: Session, model_id: int, prompt_revision_id: int, judge_model: str = None):
     existing = db.query(models.RunQueue).filter(
         and_(
             models.RunQueue.model_id == model_id,
@@ -149,7 +147,7 @@ def add_to_queue(db: Session, model_id: int, prompt_revision_id: int, judge_mode
         queue_item = models.RunQueue(
             model_id=model_id, 
             prompt_revision_id=prompt_revision_id,
-            judge_model_id=judge_model_id
+            judge_model=judge_model
         )
         db.add(queue_item)
         db.commit()
