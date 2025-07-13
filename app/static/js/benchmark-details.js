@@ -28,7 +28,7 @@ function renderBenchmarkRunDetails(data) {
                 <div class="row">
                     <div class="col-md-6">
                         <ul class="list-unstyled">
-                            <li><strong>Score:</strong> ${data.score ? data.score.toFixed(3) : 'N/A'}</li>
+                            <li><strong>Score:</strong> ${data.score !== null && data.score !== undefined ? data.score.toFixed(3) : 'N/A'}</li>
                             <li><strong>Input Tokens:</strong> ${data.input_tokens}</li>
                             <li><strong>Output Tokens:</strong> ${data.output_tokens}</li>
                             <li><strong>Total Tokens:</strong> ${data.input_tokens + data.output_tokens}</li>
@@ -99,9 +99,9 @@ function renderBenchmarkSuiteDetails(suiteData) {
                         </div>
                         <div class="col-md-6">
                             <ul class="list-unstyled">
-                                <li><strong>Max Score:</strong> ${suite.max_score ? (suite.max_score * 100).toFixed(1) + '%' : 'N/A'}</li>
-                                <li><strong>Avg Score:</strong> ${suite.avg_score ? (suite.avg_score * 100).toFixed(1) + '%' : 'N/A'}</li>
-                                <li><strong>Min Score:</strong> ${suite.min_score ? (suite.min_score * 100).toFixed(1) + '%' : 'N/A'}</li>
+                                <li><strong>Max Score:</strong> ${suite.max_score !== null && suite.max_score !== undefined ? (suite.max_score * 100).toFixed(1) + '%' : 'N/A'}</li>
+                                <li><strong>Avg Score:</strong> ${suite.avg_score !== null && suite.avg_score !== undefined ? (suite.avg_score * 100).toFixed(1) + '%' : 'N/A'}</li>
+                                <li><strong>Min Score:</strong> ${suite.min_score !== null && suite.min_score !== undefined ? (suite.min_score * 100).toFixed(1) + '%' : 'N/A'}</li>
                                 <li><strong>Total Cost:</strong> $${suite.total_cost_usd ? suite.total_cost_usd.toFixed(4) : 'N/A'}</li>
                             </ul>
                         </div>
@@ -111,7 +111,7 @@ function renderBenchmarkSuiteDetails(suiteData) {
     `;
     
     runs.forEach(run => {
-        const scorePercent = run.score ? (run.score * 100).toFixed(1) : 'N/A';
+        const scorePercent = run.score !== null && run.score !== undefined ? (run.score * 100).toFixed(1) : 'N/A';
         contentHtml += `<span class="badge bg-primary">Run ${run.run_index}: ${scorePercent}%</span>`;
     });
     
@@ -139,7 +139,7 @@ function renderBenchmarkSuiteDetails(suiteData) {
                         <div class="col-md-6">
                             <h6>Metrics:</h6>
                             <ul class="list-unstyled">
-                                <li><strong>Score:</strong> ${run.score ? (run.score * 100).toFixed(1) + '%' : 'N/A'}</li>
+                                <li><strong>Score:</strong> ${run.score !== null && run.score !== undefined ? (run.score * 100).toFixed(1) + '%' : 'N/A'}</li>
                                 <li><strong>Input Tokens:</strong> ${run.input_tokens}</li>
                                 <li><strong>Output Tokens:</strong> ${run.output_tokens}</li>
                                 <li><strong>Total Tokens:</strong> ${run.input_tokens + run.output_tokens}</li>
