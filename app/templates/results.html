@@ -89,33 +89,53 @@
                                 <th>Model</th>
                                 <th>Prompt</th>
                                 <th>Version</th>
-                                <th>Score</th>
-                                <th>Tokens</th>
+                                <th>Max Score</th>
+                                <th>Avg Score</th>
                                 <th>Cost</th>
-                                <th>Runtime</th>
+                                <th>Status</th>
                                 <th>Date</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for run in benchmark_runs %}
+                            {% for suite in benchmark_suites %}
                             <tr>
-                                <td>{{ run.model.name }}</td>
-                                <td>{{ run.prompt_revision.prompt.name }}</td>
-                                <td>v{{ run.prompt_revision.version_number }}</td>
+                                <td>{{ suite.model.name }}</td>
+                                <td>{{ suite.prompt_revision.prompt.name }}</td>
+                                <td>v{{ suite.prompt_revision.version_number }}</td>
                                 <td>
-                                    {% if run.score is not none %}
-                                    {{ "%.3f"|format(run.score) }}
+                                    {% if suite.max_score is not none %}
+                                    {{ "%.1f"|format(suite.max_score * 100) }}%
                                     {% else %}
                                     <span class="text-muted">N/A</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ run.input_tokens + run.output_tokens }}</td>
-                                <td>${{ "%.4f"|format(run.cost_usd) }}</td>
-                                <td>{{ run.run_time_ms }}ms</td>
-                                <td>{{ run.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="viewDetails({{ run.id }})">Details</button>
+                                    {% if suite.avg_score is not none %}
+                                    {{ "%.1f"|format(suite.avg_score * 100) }}%
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if suite.total_cost_usd %}
+                                    ${{ "%.4f"|format(suite.total_cost_usd) }}
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if suite.status == "completed" %}
+                                    <span class="badge bg-success">{{ suite.run_count }}/{{ suite.run_count }}</span>
+                                    {% elif suite.status == "running" %}
+                                    <span class="badge bg-warning">Running</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ suite.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ suite.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewSuiteDetails({{ suite.id }})">Show Details</button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -212,8 +232,8 @@ const tokenChart = new Chart(tokenCtx, {
     data: {
         labels: {{ chart_data.model_names|tojson }},
         datasets: [{
-            label: 'Total Tokens',
-            data: {{ chart_data.total_tokens|tojson }},
+            label: 'Average Tokens',
+            data: {{ chart_data.avg_tokens|tojson }},
             backgroundColor: 'rgba(75, 192, 192, 0.6)',
             borderColor: 'rgba(75, 192, 192, 1)',
             borderWidth: 1
@@ -251,14 +271,14 @@ function updateChart() {
             costChart.update();
             
             tokenChart.data.labels = data.model_names;
-            tokenChart.data.datasets[0].data = data.total_tokens;
+            tokenChart.data.datasets[0].data = data.avg_tokens;
             tokenChart.update();
         })
         .catch(error => console.error('Error updating charts:', error));
 }
 
-function viewDetails(runId) {
-    showBenchmarkRunDetails(runId);
+function viewSuiteDetails(suiteId) {
+    showBenchmarkSuiteDetails(suiteId);
 }
 
 function exportResults() {

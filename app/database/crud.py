@@ -198,3 +198,49 @@ def get_queue_items(db: Session, status: str = None):
     if status:
         query = query.filter(models.RunQueue.status == status)
     return query.order_by(models.RunQueue.created_at).all()
+
+def create_benchmark_suite(db: Session, prompt_revision_id: int, model_id: int, run_count: int = 5):
+    db_suite = models.BenchmarkSuite(
+        prompt_revision_id=prompt_revision_id,
+        model_id=model_id,
+        run_count=run_count,
+        status="pending"
+    )
+    db.add(db_suite)
+    db.commit()
+    db.refresh(db_suite)
+    return db_suite
+
+def get_benchmark_suites(db: Session, prompt_id: int = None, model_id: int = None):
+    query = db.query(models.BenchmarkSuite)
+    if prompt_id:
+        query = query.join(models.PromptRevision).filter(models.PromptRevision.prompt_id == prompt_id)
+    if model_id:
+        query = query.filter(models.BenchmarkSuite.model_id == model_id)
+    return query.order_by(desc(models.BenchmarkSuite.created_at)).all()
+
+def get_benchmark_suite(db: Session, suite_id: int):
+    return db.query(models.BenchmarkSuite).filter(models.BenchmarkSuite.id == suite_id).first()
+
+def get_suite_runs(db: Session, suite_id: int):
+    return db.query(models.BenchmarkRun).filter(
+        models.BenchmarkRun.suite_id == suite_id
+    ).order_by(models.BenchmarkRun.run_index).all()
+
+def get_suites_for_results_display(db: Session):
+    """Get all completed suites with their related data for results display"""
+    return db.query(models.BenchmarkSuite).filter(
+        models.BenchmarkSuite.status == "completed"
+    ).join(models.PromptRevision).join(models.Model).order_by(
+        desc(models.BenchmarkSuite.completed_at)
+    ).all()
+
+def get_suites_by_prompt(db: Session, prompt_id: int):
+    """Get all completed suites for a specific prompt, ordered by avg_score desc"""
+    return db.query(models.BenchmarkSuite).join(models.PromptRevision).filter(
+        and_(
+            models.PromptRevision.prompt_id == prompt_id,
+            models.BenchmarkSuite.status == "completed",
+            models.BenchmarkSuite.avg_score.isnot(None)
+        )
+    ).order_by(desc(models.BenchmarkSuite.avg_score)).all()

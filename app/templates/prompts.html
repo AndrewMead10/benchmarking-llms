@@ -60,9 +60,9 @@
                         <textarea class="form-control" id="promptContent" name="content" rows="8" required></textarea>
                     </div>
                     <div class="mb-3">
-                        <label for="rubricPrompt" class="form-label">Evaluation Rubric (Optional)</label>
-                        <textarea class="form-control" id="rubricPrompt" name="rubric_prompt" rows="6" placeholder="Define criteria for evaluating responses. This will be used by the judge model to score responses."></textarea>
-                        <div class="form-text">If provided, an LLM judge will use this rubric to evaluate responses automatically.</div>
+                        <label for="rubricPrompt" class="form-label">Evaluation Rubric</label>
+                        <textarea class="form-control" id="rubricPrompt" name="rubric_prompt" rows="6" required placeholder="Define criteria for evaluating responses. This will be used by the judge model to score responses."></textarea>
+                        <div class="form-text">An LLM judge will use this rubric to evaluate responses automatically.</div>
                     </div>
                 </div>
                 <div class="modal-footer">

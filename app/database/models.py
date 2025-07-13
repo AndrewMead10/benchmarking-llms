@@ -40,6 +40,7 @@ class PromptRevision(Base):
     
     prompt = relationship("Prompt", back_populates="revisions")
     benchmark_runs = relationship("BenchmarkRun", back_populates="prompt_revision")
+    benchmark_suites = relationship("BenchmarkSuite", back_populates="prompt_revision")
     queue_items = relationship("RunQueue", back_populates="prompt_revision")
 
 class Model(Base):
@@ -55,7 +56,32 @@ class Model(Base):
     
     model_type = relationship("ModelType", back_populates="models")
     benchmark_runs = relationship("BenchmarkRun", back_populates="model")
+    benchmark_suites = relationship("BenchmarkSuite", back_populates="model")
     queue_items = relationship("RunQueue", back_populates="model")
+
+class BenchmarkSuite(Base):
+    __tablename__ = "benchmark_suites"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    prompt_revision_id = Column(Integer, ForeignKey("prompt_revisions.id"))
+    model_id = Column(Integer, ForeignKey("models.id"))
+    run_count = Column(Integer, default=5)
+    status = Column(String, default="pending")
+    created_at = Column(DateTime, default=func.now())
+    completed_at = Column(DateTime, nullable=True)
+    
+    max_score = Column(Float, nullable=True)
+    avg_score = Column(Float, nullable=True)
+    min_score = Column(Float, nullable=True)
+    std_dev_score = Column(Float, nullable=True)
+    total_cost_usd = Column(Float, nullable=True)
+    avg_input_tokens = Column(Float, nullable=True)
+    avg_output_tokens = Column(Float, nullable=True)
+    avg_run_time_ms = Column(Float, nullable=True)
+    
+    prompt_revision = relationship("PromptRevision", back_populates="benchmark_suites")
+    model = relationship("Model", back_populates="benchmark_suites")
+    benchmark_runs = relationship("BenchmarkRun", back_populates="benchmark_suite")
 
 class BenchmarkRun(Base):
     __tablename__ = "benchmark_runs"
@@ -63,6 +89,8 @@ class BenchmarkRun(Base):
     id = Column(Integer, primary_key=True, index=True)
     prompt_revision_id = Column(Integer, ForeignKey("prompt_revisions.id"))
     model_id = Column(Integer, ForeignKey("models.id"))
+    suite_id = Column(Integer, ForeignKey("benchmark_suites.id"), nullable=True)
+    run_index = Column(Integer, nullable=True)
     response_text = Column(Text)
     score = Column(Float, nullable=True)
     judge_model = Column(String, nullable=True)
@@ -77,6 +105,7 @@ class BenchmarkRun(Base):
     
     prompt_revision = relationship("PromptRevision", back_populates="benchmark_runs")
     model = relationship("Model", back_populates="benchmark_runs")
+    benchmark_suite = relationship("BenchmarkSuite", back_populates="benchmark_runs")
 
 class RunQueue(Base):
     __tablename__ = "run_queue"

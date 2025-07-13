@@ -83,42 +83,22 @@ async def process_queue_item(queue_item_id: int, db: Session):
             "api_key_name": model.api_key_name
         }
         
-        response_text, input_tokens, output_tokens, cost_usd, run_time_ms = await benchmark_runner.run_benchmark(
-            prompt_revision.content,
-            model.name,
-            model_config
+        # Create benchmark suite instead of single run
+        suite = crud.create_benchmark_suite(db, prompt_revision.id, model.id, run_count=5)
+        
+        # Run the benchmark suite (5 runs)
+        await benchmark_runner.run_benchmark_suite(
+            db, suite.id, prompt_revision.content, model.name, model_config, run_count=5
         )
         
-        score = None
-        judge_reasoning = None
-        
+        # Score all runs in the suite if judge is available
         if judge_model_name and prompt_revision.rubric_prompt:
-            from benchmark.evaluator import LLMJudgeEvaluator
-            judge = LLMJudgeEvaluator(judge_model_name, judge_base_url)
-            score, judge_reasoning = await judge.evaluate_response(
-                response_text,
-                prompt_revision.content,
-                prompt_revision.rubric_prompt
-            )
+            await score_suite_runs(db, suite.id, judge_model_name, judge_base_url, prompt_revision)
         else:
-            evaluator = get_evaluator(model.model_type.name)
-            score = evaluator.evaluate_response(response_text)
+            await score_suite_runs_basic(db, suite.id, model.model_type.name)
         
-        crud.create_benchmark_run(
-            db,
-            prompt_revision.id,
-            model.id,
-            response_text,
-            input_tokens,
-            output_tokens,
-            cost_usd,
-            run_time_ms,
-            score,
-            None,  # run_metadata
-            judge_model_name,
-            judge_base_url,
-            judge_reasoning
-        )
+        # Update suite aggregates after scoring
+        benchmark_runner.update_suite_scores(db, suite.id)
         
         crud.mark_revision_as_run(db, prompt_revision.id)
         
@@ -126,7 +106,7 @@ async def process_queue_item(queue_item_id: int, db: Session):
         queue_item.completed_at = models.func.now()
         db.commit()
         
-        logger.info(f"Completed benchmark run for model {model.name} on prompt {prompt_revision.prompt.name}")
+        logger.info(f"Completed benchmark suite for model {model.name} on prompt {prompt_revision.prompt.name}")
         
     except Exception as e:
         logger.error(f"Error processing queue item {queue_item_id}: {e}")
@@ -134,6 +114,46 @@ async def process_queue_item(queue_item_id: int, db: Session):
             queue_item.status = "failed"
             queue_item.completed_at = models.func.now()
             db.commit()
+
+async def score_suite_runs(db: Session, suite_id: int, judge_model_name: str, judge_base_url: str, prompt_revision):
+    """Score all runs in a suite using LLM judge"""
+    runs = crud.get_suite_runs(db, suite_id)
+    
+    for run in runs:
+        try:
+            from benchmark.evaluator import LLMJudgeEvaluator
+            judge = LLMJudgeEvaluator(judge_model_name, judge_base_url)
+            score, judge_reasoning = await judge.evaluate_response(
+                run.response_text,
+                prompt_revision.content,
+                prompt_revision.rubric_prompt
+            )
+            
+            run.score = score
+            run.judge_model = judge_model_name
+            run.judge_base_url = judge_base_url
+            run.judge_reasoning = judge_reasoning
+            
+        except Exception as e:
+            logger.error(f"Error scoring run {run.id}: {e}")
+            run.score = 0.0
+    
+    db.commit()
+
+async def score_suite_runs_basic(db: Session, suite_id: int, model_type_name: str):
+    """Score all runs in a suite using basic evaluator"""
+    runs = crud.get_suite_runs(db, suite_id)
+    evaluator = get_evaluator(model_type_name)
+    
+    for run in runs:
+        try:
+            score = evaluator.evaluate_response(run.response_text)
+            run.score = score
+        except Exception as e:
+            logger.error(f"Error scoring run {run.id}: {e}")
+            run.score = 0.0
+    
+    db.commit()
 
 @app.get("/api/benchmark-runs/{run_id}")
 async def get_benchmark_run(run_id: int, db: Session = Depends(get_db)):
@@ -157,6 +177,46 @@ async def get_benchmark_run(run_id: int, db: Session = Depends(get_db)):
         "judge_reasoning": run.judge_reasoning
     }
 
+@app.get("/api/suite-runs/{suite_id}")
+async def get_suite_runs(suite_id: int, db: Session = Depends(get_db)):
+    suite = crud.get_benchmark_suite(db, suite_id)
+    if not suite:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Benchmark suite not found")
+    
+    runs = crud.get_suite_runs(db, suite_id)
+    
+    return {
+        "suite": {
+            "id": suite.id,
+            "status": suite.status,
+            "run_count": suite.run_count,
+            "max_score": suite.max_score,
+            "avg_score": suite.avg_score,
+            "min_score": suite.min_score,
+            "total_cost_usd": suite.total_cost_usd,
+            "prompt_name": suite.prompt_revision.prompt.name,
+            "model_name": suite.model.name,
+            "created_at": suite.created_at.isoformat(),
+            "completed_at": suite.completed_at.isoformat() if suite.completed_at else None
+        },
+        "runs": [
+            {
+                "id": run.id,
+                "run_index": run.run_index,
+                "response_text": run.response_text,
+                "score": run.score,
+                "judge_reasoning": run.judge_reasoning,
+                "input_tokens": run.input_tokens,
+                "output_tokens": run.output_tokens,
+                "cost_usd": run.cost_usd,
+                "run_time_ms": run.run_time_ms,
+                "created_at": run.created_at.isoformat()
+            }
+            for run in runs
+        ]
+    }
+
 @app.get("/api/chart-data")
 async def get_chart_data(
     eval_type: int = None,
@@ -166,10 +226,10 @@ async def get_chart_data(
 ):
     query = db.query(
         models.Model.name,
-        models.func.avg(models.BenchmarkRun.score).label('avg_score'),
-        models.func.sum(models.BenchmarkRun.cost_usd).label('total_cost'),
-        models.func.sum(models.BenchmarkRun.input_tokens + models.BenchmarkRun.output_tokens).label('total_tokens')
-    ).join(models.BenchmarkRun).join(models.PromptRevision).join(models.Prompt)
+        models.func.avg(models.BenchmarkSuite.avg_score).label('avg_score'),
+        models.func.sum(models.BenchmarkSuite.total_cost_usd).label('total_cost'),
+        models.func.avg(models.BenchmarkSuite.avg_input_tokens + models.BenchmarkSuite.avg_output_tokens).label('avg_tokens')
+    ).join(models.BenchmarkSuite).join(models.PromptRevision).join(models.Prompt)
     
     if eval_type:
         query = query.filter(models.Prompt.model_type_id == eval_type)
@@ -178,17 +238,18 @@ async def get_chart_data(
     if days:
         from datetime import datetime, timedelta
         cutoff_date = datetime.now() - timedelta(days=days)
-        query = query.filter(models.BenchmarkRun.created_at >= cutoff_date)
+        query = query.filter(models.BenchmarkSuite.created_at >= cutoff_date)
     
+    query = query.filter(models.BenchmarkSuite.status == "completed")
     results = query.group_by(models.Model.id).all()
     
     return {
         "model_names": [r.name for r in results],
         "average_scores": [float(r.avg_score) if r.avg_score else 0 for r in results],
         "total_costs": [float(r.total_cost) if r.total_cost else 0 for r in results],
-        "total_tokens": [int(r.total_tokens) if r.total_tokens else 0 for r in results]
+        "avg_tokens": [float(r.avg_tokens) if r.avg_tokens else 0 for r in results]
     }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", reload=True, host="0.0.0.0", port=8000)

@@ -20,8 +20,9 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     stats = {
         "total_prompts": db.query(models.Prompt).filter(models.Prompt.is_active == True).count(),
         "total_models": db.query(models.Model).filter(models.Model.is_active == True).count(),
+        "total_suites": db.query(models.BenchmarkSuite).count(),
         "total_runs": db.query(models.BenchmarkRun).count(),
-        "total_cost": db.query(func.sum(models.BenchmarkRun.cost_usd)).scalar() or 0.0
+        "total_cost": db.query(func.sum(models.BenchmarkSuite.total_cost_usd)).scalar() or 0.0
     }
     
     prompts_needing_rerun = crud.get_prompts_needing_rerun(db)
@@ -31,8 +32,10 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     
     model_performance = db.query(
         models.Model.name,
-        func.avg(models.BenchmarkRun.score).label('avg_score')
-    ).join(models.BenchmarkRun).group_by(models.Model.id).all()
+        func.avg(models.BenchmarkSuite.avg_score).label('avg_score')
+    ).join(models.BenchmarkSuite).filter(
+        models.BenchmarkSuite.status == "completed"
+    ).group_by(models.Model.id).all()
     
     chart_data = {
         "labels": [mp.name for mp in model_performance],
@@ -68,7 +71,7 @@ async def prompt_detail(request: Request, prompt_id: int, db: Session = Depends(
     
     current_revision = crud.get_current_prompt_revision(db, prompt_id)
     revisions = crud.get_prompt_revisions(db, prompt_id)
-    benchmark_runs = crud.get_benchmark_runs(db, prompt_id=prompt_id)
+    benchmark_suites = crud.get_suites_by_prompt(db, prompt_id)
     
     compatible_models = db.query(models.Model).filter(
         models.Model.model_type_id == prompt.model_type_id,
@@ -77,18 +80,18 @@ async def prompt_detail(request: Request, prompt_id: int, db: Session = Depends(
     
     all_models = crud.get_models(db)
     
-    total_runs = len(benchmark_runs)
-    total_cost = sum(run.cost_usd for run in benchmark_runs)
+    total_suites = len(benchmark_suites)
+    total_cost = sum(suite.total_cost_usd for suite in benchmark_suites if suite.total_cost_usd)
     
     return templates.TemplateResponse("prompt_detail.html", {
         "request": request,
         "prompt": prompt,
         "current_revision": current_revision,
         "revisions": revisions,
-        "benchmark_runs": benchmark_runs,
+        "benchmark_suites": benchmark_suites,
         "models": compatible_models,
         "all_models": all_models,
-        "total_runs": total_runs,
+        "total_suites": total_suites,
         "total_cost": total_cost
     })
 
@@ -109,52 +112,56 @@ async def model_detail(request: Request, model_id: int, db: Session = Depends(ge
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
     
-    benchmark_runs = crud.get_benchmark_runs(db, model_id=model_id)
+    benchmark_suites = crud.get_benchmark_suites(db, model_id=model_id)
     
     compatible_prompts = db.query(models.Prompt).filter(
         models.Prompt.model_type_id == model.model_type_id,
         models.Prompt.is_active == True
     ).all()
     
-    total_runs = len(benchmark_runs)
-    total_cost = sum(run.cost_usd for run in benchmark_runs)
-    total_tokens = sum(run.input_tokens + run.output_tokens for run in benchmark_runs)
-    average_score = sum(run.score for run in benchmark_runs if run.score) / len([r for r in benchmark_runs if r.score]) if benchmark_runs else None
+    total_suites = len(benchmark_suites)
+    total_cost = sum(suite.total_cost_usd for suite in benchmark_suites if suite.total_cost_usd)
+    avg_tokens = sum(suite.avg_input_tokens + suite.avg_output_tokens for suite in benchmark_suites if suite.avg_input_tokens and suite.avg_output_tokens) / len(benchmark_suites) if benchmark_suites else 0
+    
+    completed_suites = [s for s in benchmark_suites if s.avg_score is not None]
+    average_score = sum(suite.avg_score for suite in completed_suites) / len(completed_suites) if completed_suites else None
     
     return templates.TemplateResponse("model_detail.html", {
         "request": request,
         "model": model,
-        "benchmark_runs": benchmark_runs,
+        "benchmark_suites": benchmark_suites,
         "prompts": compatible_prompts,
-        "total_runs": total_runs,
+        "total_suites": total_suites,
         "total_cost": total_cost,
-        "total_tokens": total_tokens,
+        "avg_tokens": avg_tokens,
         "average_score": average_score
     })
 
 @router.get("/results", response_class=HTMLResponse)
 async def results_page(request: Request, db: Session = Depends(get_db)):
-    benchmark_runs = db.query(models.BenchmarkRun).order_by(models.BenchmarkRun.created_at.desc()).limit(100).all()
+    benchmark_suites = crud.get_suites_for_results_display(db)
     model_types = crud.get_model_types(db)
     prompts = crud.get_prompts(db)
     
     model_stats = db.query(
         models.Model.name,
-        func.avg(models.BenchmarkRun.score).label('avg_score'),
-        func.sum(models.BenchmarkRun.cost_usd).label('total_cost'),
-        func.sum(models.BenchmarkRun.input_tokens + models.BenchmarkRun.output_tokens).label('total_tokens')
-    ).join(models.BenchmarkRun).group_by(models.Model.id).all()
+        func.avg(models.BenchmarkSuite.avg_score).label('avg_score'),
+        func.sum(models.BenchmarkSuite.total_cost_usd).label('total_cost'),
+        func.avg(models.BenchmarkSuite.avg_input_tokens + models.BenchmarkSuite.avg_output_tokens).label('avg_tokens')
+    ).join(models.BenchmarkSuite).filter(
+        models.BenchmarkSuite.status == "completed"
+    ).group_by(models.Model.id).all()
     
     chart_data = {
         "model_names": [ms.name for ms in model_stats],
         "average_scores": [float(ms.avg_score) if ms.avg_score else 0 for ms in model_stats],
         "total_costs": [float(ms.total_cost) if ms.total_cost else 0 for ms in model_stats],
-        "total_tokens": [int(ms.total_tokens) if ms.total_tokens else 0 for ms in model_stats]
+        "avg_tokens": [float(ms.avg_tokens) if ms.avg_tokens else 0 for ms in model_stats]
     }
     
     return templates.TemplateResponse("results.html", {
         "request": request,
-        "benchmark_runs": benchmark_runs,
+        "benchmark_suites": benchmark_suites,
         "model_types": model_types,
         "prompts": prompts,
         "chart_data": chart_data
@@ -165,7 +172,7 @@ async def create_prompt(
     name: str = Form(...),
     model_type_id: int = Form(...),
     content: str = Form(...),
-    rubric_prompt: Optional[str] = Form(None),
+    rubric_prompt: str = Form(...),
     db: Session = Depends(get_db)
 ):
     crud.create_prompt(db, name, model_type_id, content, rubric_prompt)
@@ -175,7 +182,7 @@ async def create_prompt(
 async def create_prompt_revision(
     prompt_id: int,
     content: str = Form(...),
-    rubric_prompt: Optional[str] = Form(None),
+    rubric_prompt: str = Form(...),
     db: Session = Depends(get_db)
 ):
     crud.create_prompt_revision(db, prompt_id, content, rubric_prompt)
