@@ -1,7 +1,8 @@
 import openai
 import time
 import os
-from typing import Dict, Any, Tuple
+import asyncio
+from typing import Dict, Any, Tuple, List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,29 +12,29 @@ class BenchmarkRunner:
         self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
         self.openrouter_base_url = "https://openrouter.ai/api/v1"
     
-    def get_client(self, model_config: Dict[str, Any]) -> openai.OpenAI:
+    def get_client(self, model_config: Dict[str, Any]) -> openai.AsyncOpenAI:
         api_endpoint = model_config.get("api_endpoint")
         api_key_name = model_config.get("api_key_name")
         
         if api_endpoint and api_key_name:
             api_key = os.getenv(api_key_name)
-            return openai.OpenAI(
+            return openai.AsyncOpenAI(
                 api_key=api_key,
                 base_url=api_endpoint
             )
         else:
-            return openai.OpenAI(
+            return openai.AsyncOpenAI(
                 api_key=self.openrouter_api_key,
                 base_url=self.openrouter_base_url
             )
     
-    def run_benchmark(self, prompt_content: str, model_name: str, model_config: Dict[str, Any]) -> Tuple[str, int, int, float, int]:
+    async def run_benchmark(self, prompt_content: str, model_name: str, model_config: Dict[str, Any]) -> Tuple[str, int, int, float, int]:
         client = self.get_client(model_config)
         
         start_time = time.time()
         
         try:
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model=model_name,
                 messages=[
                     {"role": "user", "content": prompt_content}
@@ -73,3 +74,18 @@ class BenchmarkRunner:
         output_cost = (output_tokens / 1000) * model_pricing["output"]
         
         return input_cost + output_cost
+    
+    async def run_benchmarks_batch(self, benchmark_data: List[Tuple[str, str, Dict[str, Any]]]) -> List[Tuple[str, int, int, float, int]]:
+        """Run multiple benchmarks concurrently, processing up to 5 at a time"""
+        semaphore = asyncio.Semaphore(5)  # Limit to 5 concurrent requests
+        
+        async def run_single_benchmark_with_semaphore(prompt_content: str, model_name: str, model_config: Dict[str, Any]):
+            async with semaphore:
+                return await self.run_benchmark(prompt_content, model_name, model_config)
+        
+        tasks = []
+        for prompt_content, model_name, model_config in benchmark_data:
+            task = run_single_benchmark_with_semaphore(prompt_content, model_name, model_config)
+            tasks.append(task)
+        
+        return await asyncio.gather(*tasks)

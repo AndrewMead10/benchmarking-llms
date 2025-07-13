@@ -1,22 +1,28 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import openai
 import os
 import json
 import re
+import asyncio
 
 class LLMJudgeEvaluator:
-    def __init__(self, judge_model: str = "gpt-4"):
+    def __init__(self, judge_model: str = "gpt-4", judge_base_url: Optional[str] = None):
         self.judge_model = judge_model
-        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        self.openrouter_base_url = "https://openrouter.ai/api/v1"
+        self.judge_base_url = judge_base_url or "https://openrouter.ai/api/v1"
+        self.api_key = self._get_api_key()
+    
+    def _get_api_key(self):
+        if "localhost" in self.judge_base_url or "127.0.0.1" in self.judge_base_url:
+            return "dummy"
+        return os.getenv("OPENROUTER_API_KEY")
     
     def get_client(self):
-        return openai.OpenAI(
-            api_key=self.openrouter_api_key,
-            base_url=self.openrouter_base_url
+        return openai.AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.judge_base_url
         )
     
-    def evaluate_response(self, response_text: str, original_prompt: str, rubric_prompt: str) -> Tuple[Optional[float], str]:
+    async def evaluate_response(self, response_text: str, original_prompt: str, rubric_prompt: str) -> Tuple[Optional[float], str]:
         if not response_text or response_text.startswith("Error:"):
             return 0.0, "Response contains errors"
         
@@ -46,7 +52,7 @@ Format your response as JSON:
 
         try:
             client = self.get_client()
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model=self.judge_model,
                 messages=[{"role": "user", "content": judge_prompt}],
                 max_tokens=500,
@@ -74,6 +80,15 @@ Format your response as JSON:
                     
         except Exception as e:
             return None, f"Error during evaluation: {str(e)}"
+    
+    async def evaluate_responses_batch(self, evaluation_data: List[Tuple[str, str, str]]) -> List[Tuple[Optional[float], str]]:
+        """Evaluate multiple responses concurrently"""
+        tasks = []
+        for response_text, original_prompt, rubric_prompt in evaluation_data:
+            task = self.evaluate_response(response_text, original_prompt, rubric_prompt)
+            tasks.append(task)
+        
+        return await asyncio.gather(*tasks)
 
 class TextEvaluator:
     @staticmethod

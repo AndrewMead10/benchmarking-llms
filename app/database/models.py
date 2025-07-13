@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from .database import Base
+from database import Base
 
 class ModelType(Base):
     __tablename__ = "model_types"
@@ -66,6 +66,7 @@ class BenchmarkRun(Base):
     response_text = Column(Text)
     score = Column(Float, nullable=True)
     judge_model = Column(String, nullable=True)
+    judge_base_url = Column(String, nullable=True)
     judge_reasoning = Column(Text, nullable=True)
     input_tokens = Column(Integer)
     output_tokens = Column(Integer)
@@ -84,6 +85,7 @@ class RunQueue(Base):
     model_id = Column(Integer, ForeignKey("models.id"))
     prompt_revision_id = Column(Integer, ForeignKey("prompt_revisions.id"))
     judge_model = Column(String, nullable=True)
+    judge_base_url = Column(String, nullable=True)
     status = Column(String, default="pending")
     created_at = Column(DateTime, default=func.now())
     started_at = Column(DateTime, nullable=True)

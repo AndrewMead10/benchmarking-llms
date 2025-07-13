@@ -6,13 +6,13 @@ from sqlalchemy import func, and_
 from typing import List, Optional
 import json
 
-from ..database.database import get_db
-from ..database import crud, models
-from ..benchmark.runner import BenchmarkRunner
-from ..benchmark.evaluator import get_evaluator
+from database.database import get_db
+from database import crud, models
+from benchmark.runner import BenchmarkRunner
+from benchmark.evaluator import get_evaluator
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="templates")
 benchmark_runner = BenchmarkRunner()
 
 @router.get("/", response_class=HTMLResponse)
@@ -75,6 +75,8 @@ async def prompt_detail(request: Request, prompt_id: int, db: Session = Depends(
         models.Model.is_active == True
     ).all()
     
+    all_models = crud.get_models(db)
+    
     total_runs = len(benchmark_runs)
     total_cost = sum(run.cost_usd for run in benchmark_runs)
     
@@ -85,6 +87,7 @@ async def prompt_detail(request: Request, prompt_id: int, db: Session = Depends(
         "revisions": revisions,
         "benchmark_runs": benchmark_runs,
         "models": compatible_models,
+        "all_models": all_models,
         "total_runs": total_runs,
         "total_cost": total_cost
     })
@@ -193,18 +196,24 @@ async def create_model(
 async def queue_run(
     prompt_id: int = Form(...),
     model_ids: List[int] = Form(...),
-    judge_model: Optional[str] = Form(None),
+    judge_model_id: Optional[int] = Form(None),
     db: Session = Depends(get_db)
 ):
     current_revision = crud.get_current_prompt_revision(db, prompt_id)
     if not current_revision:
         raise HTTPException(status_code=404, detail="No current revision found for prompt")
     
-    if judge_model == "":
-        judge_model = None
+    judge_model_name = None
+    judge_base_url = None
+    
+    if judge_model_id:
+        judge_model = crud.get_model(db, judge_model_id)
+        if judge_model:
+            judge_model_name = judge_model.name
+            judge_base_url = judge_model.api_endpoint
     
     for model_id in model_ids:
-        crud.add_to_queue(db, model_id, current_revision.id, judge_model)
+        crud.add_to_queue(db, model_id, current_revision.id, judge_model_name, judge_base_url)
     
     return RedirectResponse(url="/", status_code=303)
 
@@ -225,6 +234,36 @@ async def rerun_prompt(prompt_id: int, db: Session = Depends(get_db)):
     
     return RedirectResponse(url=f"/prompts/{prompt_id}", status_code=303)
 
+@router.post("/api/rerun-prompt-with-judge")
+async def rerun_prompt_with_judge(
+    prompt_id: int = Form(...),
+    judge_model_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db)
+):
+    current_revision = crud.get_current_prompt_revision(db, prompt_id)
+    if not current_revision:
+        raise HTTPException(status_code=404, detail="No current revision found")
+    
+    prompt = crud.get_prompt(db, prompt_id)
+    compatible_models = db.query(models.Model).filter(
+        models.Model.model_type_id == prompt.model_type_id,
+        models.Model.is_active == True
+    ).all()
+    
+    judge_model_name = None
+    judge_base_url = None
+    
+    if judge_model_id:
+        judge_model = crud.get_model(db, judge_model_id)
+        if judge_model:
+            judge_model_name = judge_model.name
+            judge_base_url = judge_model.api_endpoint
+    
+    for model in compatible_models:
+        crud.add_to_queue(db, model.id, current_revision.id, judge_model_name, judge_base_url)
+    
+    return RedirectResponse(url=f"/prompts/{prompt_id}", status_code=303)
+
 @router.post("/api/evaluate-model/{model_id}")
 async def evaluate_model(model_id: int, db: Session = Depends(get_db)):
     model = crud.get_model(db, model_id)
@@ -242,3 +281,34 @@ async def evaluate_model(model_id: int, db: Session = Depends(get_db)):
             crud.add_to_queue(db, model.id, current_revision.id)
     
     return RedirectResponse(url=f"/models/{model_id}", status_code=303)
+
+@router.post("/api/evaluate-model-with-judge")
+async def evaluate_model_with_judge(
+    model_id: int = Form(...),
+    judge_model_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db)
+):
+    model = crud.get_model(db, model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    judge_model_name = None
+    judge_base_url = None
+    
+    if judge_model_id:
+        judge_model = crud.get_model(db, judge_model_id)
+        if judge_model:
+            judge_model_name = judge_model.name
+            judge_base_url = judge_model.api_endpoint
+    
+    compatible_prompts = db.query(models.Prompt).filter(
+        models.Prompt.model_type_id == model.model_type_id,
+        models.Prompt.is_active == True
+    ).all()
+    
+    for prompt in compatible_prompts:
+        current_revision = crud.get_current_prompt_revision(db, prompt.id)
+        if current_revision:
+            crud.add_to_queue(db, model.id, current_revision.id, judge_model_name, judge_base_url)
+    
+    return RedirectResponse(url="/models", status_code=303)

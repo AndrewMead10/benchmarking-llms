@@ -103,11 +103,12 @@ def get_benchmark_runs(db: Session, prompt_id: int = None, model_id: int = None)
 def create_benchmark_run(db: Session, prompt_revision_id: int, model_id: int, response_text: str, 
                         input_tokens: int, output_tokens: int, cost_usd: float, run_time_ms: int, 
                         score: float = None, run_metadata: dict = None, judge_model: str = None,
-                        judge_reasoning: str = None):
+                        judge_base_url: str = None, judge_reasoning: str = None):
     db_run = models.BenchmarkRun(
         prompt_revision_id=prompt_revision_id,
         model_id=model_id,
         judge_model=judge_model,
+        judge_base_url=judge_base_url,
         response_text=response_text,
         score=score,
         judge_reasoning=judge_reasoning,
@@ -134,7 +135,7 @@ def mark_revision_as_run(db: Session, revision_id: int):
         db.commit()
     return revision
 
-def add_to_queue(db: Session, model_id: int, prompt_revision_id: int, judge_model: str = None):
+def add_to_queue(db: Session, model_id: int, prompt_revision_id: int, judge_model: str = None, judge_base_url: str = None):
     existing = db.query(models.RunQueue).filter(
         and_(
             models.RunQueue.model_id == model_id,
@@ -147,13 +148,50 @@ def add_to_queue(db: Session, model_id: int, prompt_revision_id: int, judge_mode
         queue_item = models.RunQueue(
             model_id=model_id, 
             prompt_revision_id=prompt_revision_id,
-            judge_model=judge_model
+            judge_model=judge_model,
+            judge_base_url=judge_base_url
         )
         db.add(queue_item)
         db.commit()
         db.refresh(queue_item)
         return queue_item
     return existing
+
+def add_to_queue_batch(db: Session, queue_items: List[dict]):
+    """Batch add multiple items to queue efficiently"""
+    new_items = []
+    
+    for item in queue_items:
+        model_id = item['model_id']
+        prompt_revision_id = item['prompt_revision_id']
+        judge_model = item.get('judge_model')
+        judge_base_url = item.get('judge_base_url')
+        
+        # Check if item already exists
+        existing = db.query(models.RunQueue).filter(
+            and_(
+                models.RunQueue.model_id == model_id,
+                models.RunQueue.prompt_revision_id == prompt_revision_id,
+                models.RunQueue.status == "pending"
+            )
+        ).first()
+        
+        if not existing:
+            queue_item = models.RunQueue(
+                model_id=model_id,
+                prompt_revision_id=prompt_revision_id,
+                judge_model=judge_model,
+                judge_base_url=judge_base_url
+            )
+            new_items.append(queue_item)
+    
+    if new_items:
+        db.add_all(new_items)
+        db.commit()
+        for item in new_items:
+            db.refresh(item)
+    
+    return new_items
 
 def get_queue_items(db: Session, status: str = None):
     query = db.query(models.RunQueue)

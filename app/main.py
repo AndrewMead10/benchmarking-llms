@@ -5,11 +5,11 @@ from contextlib import asynccontextmanager
 import asyncio
 import logging
 
-from .database.database import engine, get_db
-from .database import models, crud
-from .pages.routes import router as pages_router
-from .benchmark.runner import BenchmarkRunner
-from .benchmark.evaluator import get_evaluator
+from database.database import engine, get_db
+from database import models, crud
+from pages.routes import router as pages_router
+from benchmark.runner import BenchmarkRunner
+from benchmark.evaluator import get_evaluator
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,8 +51,11 @@ async def queue_processor():
             db = next(get_db())
             try:
                 pending_items = crud.get_queue_items(db, "pending")
-                for item in pending_items[:1]:
-                    await process_queue_item(item.id, db)
+                # Process up to 5 items concurrently
+                batch_items = pending_items[:5]
+                if batch_items:
+                    tasks = [process_queue_item(item.id, db) for item in batch_items]
+                    await asyncio.gather(*tasks, return_exceptions=True)
             finally:
                 db.close()
         except Exception as e:
@@ -73,13 +76,14 @@ async def process_queue_item(queue_item_id: int, db: Session):
         model = queue_item.model
         prompt_revision = queue_item.prompt_revision
         judge_model_name = queue_item.judge_model
+        judge_base_url = queue_item.judge_base_url
         
         model_config = {
             "api_endpoint": model.api_endpoint,
             "api_key_name": model.api_key_name
         }
         
-        response_text, input_tokens, output_tokens, cost_usd, run_time_ms = benchmark_runner.run_benchmark(
+        response_text, input_tokens, output_tokens, cost_usd, run_time_ms = await benchmark_runner.run_benchmark(
             prompt_revision.content,
             model.name,
             model_config
@@ -89,9 +93,9 @@ async def process_queue_item(queue_item_id: int, db: Session):
         judge_reasoning = None
         
         if judge_model_name and prompt_revision.rubric_prompt:
-            from .benchmark.evaluator import LLMJudgeEvaluator
-            judge = LLMJudgeEvaluator(judge_model_name)
-            score, judge_reasoning = judge.evaluate_response(
+            from benchmark.evaluator import LLMJudgeEvaluator
+            judge = LLMJudgeEvaluator(judge_model_name, judge_base_url)
+            score, judge_reasoning = await judge.evaluate_response(
                 response_text,
                 prompt_revision.content,
                 prompt_revision.rubric_prompt
@@ -112,6 +116,7 @@ async def process_queue_item(queue_item_id: int, db: Session):
             score,
             None,  # run_metadata
             judge_model_name,
+            judge_base_url,
             judge_reasoning
         )
         
@@ -146,7 +151,10 @@ async def get_benchmark_run(run_id: int, db: Session = Depends(get_db)):
         "cost_usd": run.cost_usd,
         "run_time_ms": run.run_time_ms,
         "created_at": run.created_at.isoformat(),
-        "model_name": run.model.name
+        "model_name": run.model.name,
+        "judge_model": run.judge_model,
+        "judge_base_url": run.judge_base_url,
+        "judge_reasoning": run.judge_reasoning
     }
 
 @app.get("/api/chart-data")

@@ -155,37 +155,7 @@ function filterResults() {
 }
 
 function viewResponse(runId) {
-    fetch(`/api/benchmark-runs/${runId}`)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('responseContent').innerHTML = `
-                <div class="row">
-                    <div class="col-12 mb-3">
-                        <h6>Prompt:</h6>
-                        <pre class="bg-light p-3">${data.prompt_content}</pre>
-                    </div>
-                    <div class="col-12 mb-3">
-                        <h6>Response:</h6>
-                        <pre class="bg-light p-3">${data.response_text}</pre>
-                    </div>
-                    <div class="col-12">
-                        <h6>Metrics:</h6>
-                        <ul class="list-unstyled">
-                            <li><strong>Score:</strong> ${data.score || 'N/A'}</li>
-                            <li><strong>Input Tokens:</strong> ${data.input_tokens}</li>
-                            <li><strong>Output Tokens:</strong> ${data.output_tokens}</li>
-                            <li><strong>Cost:</strong> $${data.cost_usd.toFixed(4)}</li>
-                            <li><strong>Runtime:</strong> ${data.run_time_ms}ms</li>
-                        </ul>
-                    </div>
-                </div>
-            `;
-            new bootstrap.Modal(document.getElementById('responseModal')).show();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error loading response details');
-        });
+    showBenchmarkRunDetails(runId, 'responseModal', 'responseContent');
 }
 </script>
 {% endblock %}

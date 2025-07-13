@@ -31,9 +31,7 @@
                 {% if current_revision.needs_rerun %}
                 <div class="alert alert-warning mt-3">
                     <strong>This prompt needs to be rerun!</strong>
-                    <form method="post" action="/api/rerun-prompt/{{ prompt.id }}" style="display: inline;">
-                        <button type="submit" class="btn btn-warning btn-sm ms-2">Rerun Now</button>
-                    </form>
+                    <button type="button" class="btn btn-warning btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#rerunPromptModal">Rerun Now</button>
                 </div>
                 {% endif %}
             </div>
@@ -159,6 +157,9 @@
                                         <h6 class="mt-3">Judge Reasoning:</h6>
                                         <p class="text-muted small">{{ run.judge_reasoning }}</p>
                                         {% endif %}
+                                        <div class="mt-3">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="showBenchmarkRunDetails({{ run.id }}, 'detailsModal', 'detailsContent')">View Full Details</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -199,6 +200,57 @@
                     <button type="submit" class="btn btn-primary">Save New Revision</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Rerun Prompt Modal -->
+<div class="modal fade" id="rerunPromptModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rerun Prompt</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/api/rerun-prompt-with-judge">
+                <div class="modal-body">
+                    <input type="hidden" name="prompt_id" value="{{ prompt.id }}">
+                    <div class="mb-3">
+                        <label for="rerunJudgeModel" class="form-label">Judge Model (Optional)</label>
+                        <select class="form-select" id="rerunJudgeModel" name="judge_model_id">
+                            <option value="">No judge (simple evaluation)</option>
+                            {% for model in all_models %}
+                            <option value="{{ model.id }}">{{ model.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Select a model to use for LLM-as-a-judge evaluation.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Start Rerun</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Benchmark Run Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Benchmark Run Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="detailsContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>
