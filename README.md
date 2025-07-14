@@ -11,7 +11,7 @@ A comprehensive web-based tool for benchmarking and evaluating Large Language Mo
 ### Installation
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/AndrewMead10/benchmarking-llms
 cd benchmarking-llms
 
 # Install dependencies
@@ -19,7 +19,8 @@ pip install -r requirements.txt
 
 # Set up environment variables (see Environment Setup below)
 # Start the application
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd app
+python main.py
 ```
 
 The application will be available at `http://localhost:8000`
