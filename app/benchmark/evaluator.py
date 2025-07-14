@@ -10,6 +10,7 @@ class LLMJudgeEvaluator:
         self.judge_model = judge_model
         self.judge_base_url = judge_base_url or "https://openrouter.ai/api/v1"
         self.api_key = self._get_api_key()
+        self._semaphore = asyncio.Semaphore(5)
     
     def _get_api_key(self):
         if "localhost" in self.judge_base_url or "127.0.0.1" in self.judge_base_url:
@@ -23,13 +24,14 @@ class LLMJudgeEvaluator:
         )
     
     async def evaluate_response(self, response_text: str, original_prompt: str, rubric_prompt: str) -> Tuple[Optional[float], str]:
-        if not response_text or response_text.startswith("Error:"):
-            return 0.0, "Response contains errors"
-        
-        if not rubric_prompt:
-            return None, "No rubric provided"
-        
-        judge_prompt = f"""You are an expert evaluator. Please evaluate the following response based on the given criteria.
+        async with self._semaphore:
+            if not response_text or response_text.startswith("Error:"):
+                return 0.0, "Response contains errors"
+            
+            if not rubric_prompt:
+                return None, "No rubric provided"
+            
+            judge_prompt = f"""You are an expert evaluator. Please evaluate the following response based on the given criteria.
 
 Original Prompt:
 {original_prompt}
@@ -50,36 +52,36 @@ Format your response as JSON:
     "reasoning": "Your detailed explanation here..."
 }}"""
 
-        try:
-            client = self.get_client()
-            response = await client.chat.completions.create(
-                model=self.judge_model,
-                messages=[{"role": "user", "content": judge_prompt}],
-                max_tokens=500,
-                temperature=0.1
-            )
-            
-            judge_response = response.choices[0].message.content
-            
             try:
-                result = json.loads(judge_response)
-                score = float(result.get("score", 0.0))
-                reasoning = result.get("reasoning", "No reasoning provided")
+                client = self.get_client()
+                response = await client.chat.completions.create(
+                    model=self.judge_model,
+                    messages=[{"role": "user", "content": judge_prompt}],
+                    max_tokens=500,
+                    temperature=0.1
+                )
                 
-                score = max(0.0, min(1.0, score))
-                return score, reasoning
+                judge_response = response.choices[0].message.content
                 
-            except (json.JSONDecodeError, ValueError):
-                score_match = re.search(r'"?score"?\s*:\s*([0-9]*\.?[0-9]+)', judge_response)
-                if score_match:
-                    score = float(score_match.group(1))
-                    score = max(0.0, min(1.0, score))
-                    return score, judge_response
-                else:
-                    return None, f"Could not parse judge response: {judge_response}"
+                try:
+                    result = json.loads(judge_response)
+                    score = float(result.get("score", 0.0))
+                    reasoning = result.get("reasoning", "No reasoning provided")
                     
-        except Exception as e:
-            return None, f"Error during evaluation: {str(e)}"
+                    score = max(0.0, min(1.0, score))
+                    return score, reasoning
+                    
+                except (json.JSONDecodeError, ValueError):
+                    score_match = re.search(r'"?score"?\s*:\s*([0-9]*\.?[0-9]+)', judge_response)
+                    if score_match:
+                        score = float(score_match.group(1))
+                        score = max(0.0, min(1.0, score))
+                        return score, judge_response
+                    else:
+                        return None, f"Could not parse judge response: {judge_response}"
+                        
+            except Exception as e:
+                return None, f"Error during evaluation: {str(e)}"
     
     async def evaluate_responses_batch(self, evaluation_data: List[Tuple[str, str, str]]) -> List[Tuple[Optional[float], str]]:
         """Evaluate multiple responses concurrently"""

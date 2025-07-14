@@ -119,23 +119,29 @@ async def score_suite_runs(db: Session, suite_id: int, judge_model_name: str, ju
     """Score all runs in a suite using LLM judge"""
     runs = crud.get_suite_runs(db, suite_id)
     
-    for run in runs:
-        try:
-            from benchmark.evaluator import LLMJudgeEvaluator
-            judge = LLMJudgeEvaluator(judge_model_name, judge_base_url)
-            score, judge_reasoning = await judge.evaluate_response(
-                run.response_text,
-                prompt_revision.content,
-                prompt_revision.rubric_prompt
-            )
-            
-            run.score = score
+    if not runs:
+        return
+    
+    try:
+        from benchmark.evaluator import LLMJudgeEvaluator
+        judge = LLMJudgeEvaluator(judge_model_name, judge_base_url)
+        
+        evaluation_data = [
+            (run.response_text, prompt_revision.content, prompt_revision.rubric_prompt)
+            for run in runs
+        ]
+        
+        results = await judge.evaluate_responses_batch(evaluation_data)
+        
+        for run, (score, judge_reasoning) in zip(runs, results):
+            run.score = score if score is not None else 0.0
             run.judge_model = judge_model_name
             run.judge_base_url = judge_base_url
             run.judge_reasoning = judge_reasoning
             
-        except Exception as e:
-            logger.error(f"Error scoring run {run.id}: {e}")
+    except Exception as e:
+        logger.error(f"Error scoring suite {suite_id}: {e}")
+        for run in runs:
             run.score = 0.0
     
     db.commit()
