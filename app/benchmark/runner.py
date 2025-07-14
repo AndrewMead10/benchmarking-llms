@@ -42,7 +42,7 @@ class BenchmarkRunner:
                 messages=[
                     {"role": "user", "content": prompt_content}
                 ],
-                max_tokens=1000,
+                max_tokens=8192,
                 temperature=0.7
             )
             

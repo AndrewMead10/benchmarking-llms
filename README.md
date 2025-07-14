@@ -23,7 +23,7 @@ cd app
 python main.py
 ```
 
-The application will be available at `http://localhost:8000`
+The application will be available at `http://localhost:7543`
 
 ### Environment Setup
 Create a `.env` file or set environment variables:

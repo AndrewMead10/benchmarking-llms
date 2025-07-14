@@ -57,7 +57,7 @@ Format your response as JSON:
                 response = await client.chat.completions.create(
                     model=self.judge_model,
                     messages=[{"role": "user", "content": judge_prompt}],
-                    max_tokens=500,
+                    max_tokens=8192,
                     temperature=0.1
                 )
                 
