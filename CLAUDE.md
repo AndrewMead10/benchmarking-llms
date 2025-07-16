@@ -56,6 +56,36 @@ pip install -r requirements.txt
 # Custom API keys can be configured per model
 ```
 
+### Docker Deployment
+
+```bash
+# Build and start services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+### SystemD Service (Arch Linux)
+
+```bash
+# Copy service file to systemd directory
+sudo cp benchmarking-llms.service /etc/systemd/system/
+
+# Enable and start service
+sudo systemctl enable benchmarking-llms.service
+sudo systemctl start benchmarking-llms.service
+
+# Check status
+sudo systemctl status benchmarking-llms.service
+
+# View logs
+sudo journalctl -u benchmarking-llms.service -f
+```
+
 ## Key Design Patterns
 
 ### Prompt Versioning

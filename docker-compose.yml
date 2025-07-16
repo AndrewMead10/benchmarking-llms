@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "7543:7543"
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - ./data:/project/app/data
+      - ./app.db:/project/app/app.db
+    restart: unless-stopped
