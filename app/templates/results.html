@@ -3,166 +3,150 @@
 {% block title %}Results - LLM Benchmarking Tool{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1>Benchmark Results & Analytics</h1>
+<h1 class="text-3xl font-bold text-dark-text mb-8">Benchmark Results & Analytics</h1>
+
+<div class="bg-dark-card border border-dark-border rounded-lg mb-8">
+    <div class="px-6 py-4 border-b border-dark-border">
+        <h5 class="text-lg font-semibold text-dark-text">Model Performance Comparison</h5>
+    </div>
+    <div class="p-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+                <label for="evalTypeFilter" class="block text-sm font-medium text-dark-text mb-2">Evaluation Type:</label>
+                <select class="w-full px-3 py-2 bg-dark-surface border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="evalTypeFilter" onchange="updateChart()">
+                    <option value="">All Types</option>
+                    {% for model_type in model_types %}
+                    <option value="{{ model_type.id }}">{{ model_type.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="promptFilter" class="block text-sm font-medium text-dark-text mb-2">Specific Prompt:</label>
+                <select class="w-full px-3 py-2 bg-dark-surface border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="promptFilter" onchange="updateChart()">
+                    <option value="">All Prompts</option>
+                    {% for prompt in prompts %}
+                    <option value="{{ prompt.id }}">{{ prompt.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="dateRange" class="block text-sm font-medium text-dark-text mb-2">Date Range:</label>
+                <select class="w-full px-3 py-2 bg-dark-surface border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="dateRange" onchange="updateChart()">
+                    <option value="all">All Time</option>
+                    <option value="7">Last 7 Days</option>
+                    <option value="30">Last 30 Days</option>
+                    <option value="90">Last 90 Days</option>
+                </select>
+            </div>
+        </div>
+        <canvas id="comparisonChart" width="400" height="200"></canvas>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Model Performance Comparison</h5>
-            </div>
-            <div class="card-body">
-                <div class="row mb-3">
-                    <div class="col-md-4">
-                        <label for="evalTypeFilter" class="form-label">Evaluation Type:</label>
-                        <select class="form-select" id="evalTypeFilter" onchange="updateChart()">
-                            <option value="">All Types</option>
-                            {% for model_type in model_types %}
-                            <option value="{{ model_type.id }}">{{ model_type.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="promptFilter" class="form-label">Specific Prompt:</label>
-                        <select class="form-select" id="promptFilter" onchange="updateChart()">
-                            <option value="">All Prompts</option>
-                            {% for prompt in prompts %}
-                            <option value="{{ prompt.id }}">{{ prompt.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="dateRange" class="form-label">Date Range:</label>
-                        <select class="form-select" id="dateRange" onchange="updateChart()">
-                            <option value="all">All Time</option>
-                            <option value="7">Last 7 Days</option>
-                            <option value="30">Last 30 Days</option>
-                            <option value="90">Last 90 Days</option>
-                        </select>
-                    </div>
-                </div>
-                <canvas id="comparisonChart" width="400" height="200"></canvas>
-            </div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-dark-card border border-dark-border rounded-lg">
+        <div class="px-6 py-4 border-b border-dark-border">
+            <h5 class="text-lg font-semibold text-dark-text">Cost Analysis</h5>
+        </div>
+        <div class="p-6">
+            <canvas id="costChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+    <div class="bg-dark-card border border-dark-border rounded-lg">
+        <div class="px-6 py-4 border-b border-dark-border">
+            <h5 class="text-lg font-semibold text-dark-text">Token Usage</h5>
+        </div>
+        <div class="p-6">
+            <canvas id="tokenChart" width="400" height="200"></canvas>
         </div>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5>Cost Analysis</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="costChart" width="400" height="200"></canvas>
-            </div>
-        </div>
+<div class="bg-dark-card border border-dark-border rounded-lg">
+    <div class="px-6 py-4 border-b border-dark-border flex justify-between items-center">
+        <h5 class="text-lg font-semibold text-dark-text">Detailed Results</h5>
+        <button class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors" onclick="exportResults()">Export CSV</button>
     </div>
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">
-                <h5>Token Usage</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="tokenChart" width="400" height="200"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5>Detailed Results</h5>
-                <button class="btn btn-success btn-sm" onclick="exportResults()">Export CSV</button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped" id="resultsTable">
-                        <thead>
-                            <tr>
-                                <th>Model</th>
-                                <th>Prompt</th>
-                                <th>Version</th>
-                                <th>Max Score</th>
-                                <th>Avg Score</th>
-                                <th>Cost</th>
-                                <th>Status</th>
-                                <th>Date</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for suite in benchmark_suites %}
-                            <tr>
-                                <td>{{ suite.model.name }}</td>
-                                <td>{{ suite.prompt_revision.prompt.name }}</td>
-                                <td>v{{ suite.prompt_revision.version_number }}</td>
-                                <td>
-                                    {% if suite.max_score is not none %}
-                                    {{ "%.1f"|format(suite.max_score * 100) }}%
-                                    {% else %}
-                                    <span class="text-muted">N/A</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if suite.avg_score is not none %}
-                                    {{ "%.1f"|format(suite.avg_score * 100) }}%
-                                    {% else %}
-                                    <span class="text-muted">N/A</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if suite.total_cost_usd %}
-                                    ${{ "%.4f"|format(suite.total_cost_usd) }}
-                                    {% else %}
-                                    <span class="text-muted">N/A</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if suite.status == "completed" %}
-                                    <span class="badge bg-success">{{ suite.run_count }}/{{ suite.run_count }}</span>
-                                    {% elif suite.status == "running" %}
-                                    <span class="badge bg-warning">Running</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">{{ suite.status }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ suite.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-primary" onclick="viewSuiteDetails({{ suite.id }})">Show Details</button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+    <div class="p-6">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="resultsTable">
+                <thead>
+                    <tr class="border-b border-dark-border">
+                        <th class="text-left py-2 text-dark-muted font-medium">Model</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Prompt</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Version</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Max Score</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Avg Score</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Cost</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Status</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Date</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for suite in benchmark_suites %}
+                    <tr class="border-b border-dark-border hover:bg-dark-surface transition-colors">
+                        <td class="py-2 text-dark-text">{{ suite.model.name }}</td>
+                        <td class="py-2 text-dark-text">{{ suite.prompt_revision.prompt.name }}</td>
+                        <td class="py-2 text-dark-text">v{{ suite.prompt_revision.version_number }}</td>
+                        <td class="py-2 text-dark-text">
+                            {% if suite.max_score is not none %}
+                            {{ "%.1f"|format(suite.max_score * 100) }}%
+                            {% else %}
+                            <span class="text-dark-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 text-dark-text">
+                            {% if suite.avg_score is not none %}
+                            {{ "%.1f"|format(suite.avg_score * 100) }}%
+                            {% else %}
+                            <span class="text-dark-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 text-dark-text">
+                            {% if suite.total_cost_usd %}
+                            ${{ "%.4f"|format(suite.total_cost_usd) }}
+                            {% else %}
+                            <span class="text-dark-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2">
+                            {% if suite.status == "completed" %}
+                            <span class="px-2 py-1 rounded text-xs text-white bg-green-600">{{ suite.run_count }}/{{ suite.run_count }}</span>
+                            {% elif suite.status == "running" %}
+                            <span class="px-2 py-1 rounded text-xs text-white bg-yellow-600">Running</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded text-xs text-white bg-gray-600">{{ suite.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 text-dark-text">{{ suite.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td class="py-2">
+                            <button class="border border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white px-2 py-1 rounded text-xs transition-colors" onclick="viewSuiteDetails({{ suite.id }})">Show Details</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
 <!-- Benchmark Run Details Modal -->
-<div class="modal fade" id="detailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Benchmark Run Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="detailsContent">
-                    <!-- Content will be loaded here -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
+<div id="detailsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-dark-surface rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h5 class="text-lg font-semibold text-dark-text">Benchmark Run Details</h5>
+            <button type="button" class="text-dark-muted hover:text-dark-text" onclick="closeModal('detailsModal')">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <div id="detailsContent">
+            <!-- Content will be loaded here -->
+        </div>
+        <div class="flex justify-end mt-6">
+            <button type="button" class="px-4 py-2 text-dark-muted hover:text-dark-text transition-colors" onclick="closeModal('detailsModal')">Close</button>
         </div>
     </div>
 </div>
@@ -283,6 +267,14 @@ function viewSuiteDetails(suiteId) {
 
 function exportResults() {
     window.location.href = '/api/export-results';
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
 }
 </script>
 {% endblock %}

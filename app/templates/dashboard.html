@@ -3,150 +3,140 @@
 {% block title %}Dashboard - LLM Benchmarking Tool{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1>Benchmark Dashboard</h1>
+<h1 class="text-3xl font-bold text-dark-text mb-8">Benchmark Dashboard</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="bg-dark-card border border-dark-border rounded-lg p-6">
+        <h5 class="text-sm font-medium text-dark-muted mb-2">Total Prompts</h5>
+        <h2 class="text-2xl font-bold text-blue-400">{{ stats.total_prompts }}</h2>
+    </div>
+    <div class="bg-dark-card border border-dark-border rounded-lg p-6">
+        <h5 class="text-sm font-medium text-dark-muted mb-2">Total Models</h5>
+        <h2 class="text-2xl font-bold text-green-400">{{ stats.total_models }}</h2>
+    </div>
+    <div class="bg-dark-card border border-dark-border rounded-lg p-6">
+        <h5 class="text-sm font-medium text-dark-muted mb-2">Benchmark Suites</h5>
+        <h2 class="text-2xl font-bold text-cyan-400">{{ stats.total_suites }}</h2>
+        <p class="text-sm text-dark-muted mt-1">{{ stats.total_runs }} total runs</p>
+    </div>
+    <div class="bg-dark-card border border-dark-border rounded-lg p-6">
+        <h5 class="text-sm font-medium text-dark-muted mb-2">Total Cost</h5>
+        <h2 class="text-2xl font-bold text-yellow-400">${{ "%.4f"|format(stats.total_cost) }}</h2>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Total Prompts</h5>
-                <h2 class="text-primary">{{ stats.total_prompts }}</h2>
-            </div>
-        </div>
+<div class="bg-dark-card border border-dark-border rounded-lg mb-8">
+    <div class="px-6 py-4 border-b border-dark-border">
+        <h5 class="text-lg font-semibold text-dark-text">Model Performance Comparison</h5>
     </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Total Models</h5>
-                <h2 class="text-success">{{ stats.total_models }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Benchmark Suites</h5>
-                <h2 class="text-info">{{ stats.total_suites }}</h2>
-                <small class="text-muted">{{ stats.total_runs }} total runs</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Total Cost</h5>
-                <h2 class="text-warning">${{ "%.4f"|format(stats.total_cost) }}</h2>
-            </div>
-        </div>
+    <div class="p-6">
+        <canvas id="performanceChart" width="400" height="200"></canvas>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Model Performance Comparison</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="performanceChart" width="400" height="200"></canvas>
-            </div>
+<div class="bg-dark-card border border-dark-border rounded-lg">
+    <div class="px-6 py-4 border-b border-dark-border flex justify-between items-center">
+        <h5 class="text-lg font-semibold text-dark-text">Current Queue</h5>
+        <div class="flex space-x-3">
+            {% if prompts_needing_rerun %}
+            <form method="post" action="/api/rerun-all" class="inline">
+                <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm transition-colors">
+                    Rerun All ({{ prompts_needing_rerun|length }})
+                </button>
+            </form>
+            {% endif %}
+            <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors" onclick="openModal('runModal')">
+                Queue New Run
+            </button>
         </div>
     </div>
-</div>
-
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5>Current Queue</h5>
-                <div>
-                    {% if prompts_needing_rerun %}
-                    <form method="post" action="/api/rerun-all" style="display: inline;">
-                        <button type="submit" class="btn btn-warning btn-sm">Rerun All ({{ prompts_needing_rerun|length }})</button>
-                    </form>
-                    {% endif %}
-                    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#runModal">Queue New Run</button>
-                </div>
-            </div>
-            <div class="card-body">
-                {% if queue_items %}
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Model</th>
-                                <th>Prompt</th>
-                                <th>Status</th>
-                                <th>Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in queue_items %}
-                            <tr>
-                                <td>{{ item.model.name }}</td>
-                                <td>{{ item.prompt_revision.prompt.name }}</td>
-                                <td>
-                                    <span class="badge bg-{% if item.status == 'completed' %}success{% elif item.status == 'running' %}warning{% elif item.status == 'failed' %}danger{% else %}secondary{% endif %}">
-                                        {{ item.status }}
-                                    </span>
-                                </td>
-                                <td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">No items in queue</p>
-                {% endif %}
-            </div>
+    <div class="p-6">
+        {% if queue_items %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-dark-border">
+                        <th class="text-left py-2 text-dark-muted font-medium">Model</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Prompt</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Status</th>
+                        <th class="text-left py-2 text-dark-muted font-medium">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in queue_items %}
+                    <tr class="border-b border-dark-border">
+                        <td class="py-2 text-dark-text">{{ item.model.name }}</td>
+                        <td class="py-2 text-dark-text">{{ item.prompt_revision.prompt.name }}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 rounded text-xs text-white {% if item.status == 'completed' %}bg-green-600{% elif item.status == 'running' %}bg-yellow-600{% elif item.status == 'failed' %}bg-red-600{% else %}bg-gray-600{% endif %}">
+                                {{ item.status }}
+                            </span>
+                        </td>
+                        <td class="py-2 text-dark-text">{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+        {% else %}
+        <p class="text-dark-muted">No items in queue</p>
+        {% endif %}
     </div>
 </div>
 
 <!-- Run Modal -->
-<div class="modal fade" id="runModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Queue Benchmark Run</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="post" action="/api/queue-run">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="promptSelect" class="form-label">Prompt</label>
-                        <select class="form-select" id="promptSelect" name="prompt_id" required>
-                            {% for prompt in prompts %}
-                            <option value="{{ prompt.id }}">{{ prompt.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="modelSelect" class="form-label">Models</label>
+<div id="runModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-dark-surface rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h5 class="text-lg font-semibold text-dark-text">Queue Benchmark Run</h5>
+            <button type="button" class="text-dark-muted hover:text-dark-text" onclick="closeModal('runModal')">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <form method="post" action="/api/queue-run">
+            <div class="space-y-4">
+                <div>
+                    <label for="promptSelect" class="block text-sm font-medium text-dark-text mb-2">Prompt</label>
+                    <select class="w-full px-3 py-2 bg-dark-card border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="promptSelect" name="prompt_id" required>
+                        {% for prompt in prompts %}
+                        <option value="{{ prompt.id }}">{{ prompt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-dark-text mb-2">Models</label>
+                    <div class="space-y-2 max-h-32 overflow-y-auto">
                         {% for model in models %}
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="model_ids" value="{{ model.id }}" id="model{{ model.id }}">
-                            <label class="form-check-label" for="model{{ model.id }}">
+                        <div class="flex items-center">
+                            <input class="w-4 h-4 text-blue-600 bg-dark-card border-dark-border rounded focus:ring-blue-500" type="checkbox" name="model_ids" value="{{ model.id }}" id="model{{ model.id }}">
+                            <label class="ml-2 text-sm text-dark-text" for="model{{ model.id }}">
                                 {{ model.name }}
                             </label>
                         </div>
                         {% endfor %}
                     </div>
-                    {{ judge_model_dropdown('judgeModel', models) }}
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Queue Run</button>
-                </div>
-            </form>
-        </div>
+                {{ judge_model_dropdown('judgeModel', models) }}
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" class="px-4 py-2 text-dark-muted hover:text-dark-text transition-colors" onclick="closeModal('runModal')">Cancel</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">Queue Run</button>
+            </div>
+        </form>
     </div>
 </div>
+
+<script>
+function openModal(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+}
+</script>
 {% endblock %}
 
 {% block scripts %}

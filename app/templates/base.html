@@ -1,42 +1,64 @@
 {% macro judge_model_dropdown(id, models, label="Judge Model (Optional)", help_text="Select a model to use for LLM-as-a-judge evaluation.") %}
-<div class="mb-3">
-    <label for="{{ id }}" class="form-label">{{ label }}</label>
-    <select class="form-select" id="{{ id }}" name="judge_model_id">
+<div class="mb-6">
+    <label for="{{ id }}" class="block text-sm font-medium text-dark-text mb-2">{{ label }}</label>
+    <select class="w-full px-3 py-2 bg-dark-card border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="{{ id }}" name="judge_model_id">
         {% for model in models %}
         <option value="{{ model.id }}">{{ model.name }}</option>
         {% endfor %}
     </select>
-    <div class="form-text">{{ help_text }}</div>
+    <p class="mt-1 text-sm text-dark-muted">{{ help_text }}</p>
 </div>
 {% endmacro %}
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}LLM Benchmarking Tool{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" type="image/webp" href="/static/favicon.webp">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f172a',
+                            surface: '#1e293b',
+                            card: '#334155',
+                            border: '#475569',
+                            text: '#f1f5f9',
+                            muted: '#94a3b8'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="/">LLM Benchmarks</a>
-            <div class="navbar-nav">
-                <a class="nav-link" href="/">Dashboard</a>
-                <a class="nav-link" href="/prompts">Prompts</a>
-                <a class="nav-link" href="/models">Models</a>
-                <a class="nav-link" href="/results">Results</a>
+<body class="bg-dark-bg text-dark-text min-h-screen">
+    <nav class="bg-dark-surface border-b border-dark-border">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <a href="/" class="text-xl font-bold text-white hover:text-blue-400 transition-colors">
+                    LLM Benchmarks
+                </a>
+                <div class="flex space-x-8">
+                    <a href="/" class="text-dark-text hover:text-blue-400 transition-colors">Dashboard</a>
+                    <a href="/prompts" class="text-dark-text hover:text-blue-400 transition-colors">Prompts</a>
+                    <a href="/models" class="text-dark-text hover:text-blue-400 transition-colors">Models</a>
+                    <a href="/results" class="text-dark-text hover:text-blue-400 transition-colors">Results</a>
+                </div>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {% block content %}{% endblock %}
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/static/js/benchmark-details.js"></script>
     {% block scripts %}{% endblock %}
 </body>

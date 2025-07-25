@@ -3,74 +3,80 @@
 {% block title %}Prompts - LLM Benchmarking Tool{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Prompts</h1>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPromptModal">Create New Prompt</button>
-        </div>
-    </div>
+<div class="flex justify-between items-center mb-8">
+    <h1 class="text-3xl font-bold text-dark-text">Prompts</h1>
+    <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors" onclick="openModal('createPromptModal')">
+        Create New Prompt
+    </button>
 </div>
 
-<div class="row">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for prompt in prompts %}
-    <div class="col-md-6 col-lg-4 mb-3">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <a href="/prompts/{{ prompt.id }}" class="text-decoration-none">{{ prompt.name }}</a>
-                </h5>
-                <p class="card-text">
-                    <small class="text-muted">Type: {{ prompt.model_type.name }}</small><br>
-                    <small class="text-muted">Created: {{ prompt.created_at.strftime('%Y-%m-%d') }}</small>
-                </p>
-                {% if prompt.revisions and prompt.revisions[0].needs_rerun %}
-                <span class="badge bg-warning">Needs Rerun</span>
-                {% endif %}
-            </div>
+    <div class="bg-dark-card border border-dark-border rounded-lg p-6 hover:border-blue-500 transition-colors">
+        <h5 class="text-lg font-semibold mb-3">
+            <a href="/prompts/{{ prompt.id }}" class="text-blue-400 hover:text-blue-300 transition-colors">{{ prompt.name }}</a>
+        </h5>
+        <div class="space-y-1 mb-4">
+            <p class="text-dark-muted text-sm">Type: {{ prompt.model_type.name }}</p>
+            <p class="text-dark-muted text-sm">Created: {{ prompt.created_at.strftime('%Y-%m-%d') }}</p>
         </div>
+        {% if prompt.revisions and prompt.revisions[0].needs_rerun %}
+        <span class="bg-yellow-600 text-white px-2 py-1 rounded text-sm">Needs Rerun</span>
+        {% endif %}
     </div>
     {% endfor %}
 </div>
 
 <!-- Create Prompt Modal -->
-<div class="modal fade" id="createPromptModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Create New Prompt</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="post" action="/api/prompts">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="promptName" class="form-label">Name</label>
-                        <input type="text" class="form-control" id="promptName" name="name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="modelType" class="form-label">Model Type</label>
-                        <select class="form-select" id="modelType" name="model_type_id" required>
-                            {% for model_type in model_types %}
-                            <option value="{{ model_type.id }}">{{ model_type.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="promptContent" class="form-label">Prompt Content</label>
-                        <textarea class="form-control" id="promptContent" name="content" rows="8" required></textarea>
-                    </div>
-                    <div class="mb-3">
-                        <label for="rubricPrompt" class="form-label">Evaluation Rubric</label>
-                        <textarea class="form-control" id="rubricPrompt" name="rubric_prompt" rows="6" required placeholder="Define criteria for evaluating responses. This will be used by the judge model to score responses."></textarea>
-                        <div class="form-text">An LLM judge will use this rubric to evaluate responses automatically.</div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Prompt</button>
-                </div>
-            </form>
+<div id="createPromptModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-dark-surface rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h5 class="text-lg font-semibold text-dark-text">Create New Prompt</h5>
+            <button type="button" class="text-dark-muted hover:text-dark-text" onclick="closeModal('createPromptModal')">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
         </div>
+        <form method="post" action="/api/prompts">
+            <div class="space-y-4">
+                <div>
+                    <label for="promptName" class="block text-sm font-medium text-dark-text mb-2">Name</label>
+                    <input type="text" class="w-full px-3 py-2 bg-dark-card border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="promptName" name="name" required>
+                </div>
+                <div>
+                    <label for="modelType" class="block text-sm font-medium text-dark-text mb-2">Model Type</label>
+                    <select class="w-full px-3 py-2 bg-dark-card border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="modelType" name="model_type_id" required>
+                        {% for model_type in model_types %}
+                        <option value="{{ model_type.id }}">{{ model_type.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="promptContent" class="block text-sm font-medium text-dark-text mb-2">Prompt Content</label>
+                    <textarea class="w-full px-3 py-2 bg-dark-card border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="promptContent" name="content" rows="8" required></textarea>
+                </div>
+                <div>
+                    <label for="rubricPrompt" class="block text-sm font-medium text-dark-text mb-2">Evaluation Rubric</label>
+                    <textarea class="w-full px-3 py-2 bg-dark-card border border-dark-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-dark-text" id="rubricPrompt" name="rubric_prompt" rows="6" required placeholder="Define criteria for evaluating responses. This will be used by the judge model to score responses."></textarea>
+                    <p class="mt-1 text-sm text-dark-muted">An LLM judge will use this rubric to evaluate responses automatically.</p>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 mt-6">
+                <button type="button" class="px-4 py-2 text-dark-muted hover:text-dark-text transition-colors" onclick="closeModal('createPromptModal')">Cancel</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">Create Prompt</button>
+            </div>
+        </form>
     </div>
 </div>
+
+<script>
+function openModal(modalId) {
+    document.getElementById(modalId).classList.remove('hidden');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.add('hidden');
+}
+</script>
 {% endblock %}
